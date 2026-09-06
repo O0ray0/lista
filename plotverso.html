@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlotVerso - Media Review Journal</title>
+  <link rel="stylesheet" href="plotverso.css">
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+
+  <!-- Topo Navegador -->
+  <header class="top-banner">
+    <a href="index.html" class="btn-back">← Voltar para a Home</a>
+    <div class="banner-title">𓏲ּ𝄢 welcome to PlotVerso .ᐟ</div>
+    <div class="banner-decor">🎬📖✨</div>
+  </header>
+
+  <main class="scrapbook-container">
+
+    <!-- Header Card Principal -->
+    <section class="box header-card">
+      <div class="header-details">
+        <h1>PlotVerso</h1>
+        <p class="subtitle">Seu diário interativo de filmes, livros e séries! ✨</p>
+      </div>
+    </section>
+
+    <!-- Formulário para Adicionar Item -->
+    <section class="box add-card">
+      <h2>✦ Adicionar Novo Título</h2>
+      <form id="media-form">
+        <div class="input-group">
+          <input type="text" id="title-input" placeholder="Ex: Coraline, Harry Potter, Breaking Bad..." required>
+          <select id="type-select">
+            <option value="movie">🎬 Filme</option>
+            <option value="book">📚 Livro</option>
+            <option value="show">📺 Série</option>
+          </select>
+          <button type="submit" class="btn-add">+ Adicionar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Lista de Mídias -->
+    <section class="box lined-paper">
+      <div class="list-header">
+        <h2>Minha Coleção</h2>
+        <span id="counter" class="counter-badge">0 itens</span>
+      </div>
+
+      <ul id="media-list" class="media-list">
+        <!-- Itens inseridos via JS -->
+      </ul>
+    </section>
+
+  </main>
+
+  <!-- Modal / Avaliação Rápida -->
+  <div id="rating-modal" class="modal-overlay hidden">
+    <div class="modal-box box">
+      <span class="pushpin">📌</span>
+      <h3>Avaliar Mídia ✨</h3>
+      <p id="modal-item-title" class="modal-item-title">Nome do Título</p>
+      
+      <p class="rating-label">Sua nota de 0 a 5 estrelas:</p>
+      <div id="star-rating" class="star-rating">
+        <span data-value="1">★</span>
+        <span data-value="2">★</span>
+        <span data-value="3">★</span>
+        <span data-value="4">★</span>
+        <span data-value="5">★</span>
+      </div>
+
+      <!-- Clique no emoji para disparar confetes -->
+      <label class="sparkle-checkbox">
+        <input type="checkbox" id="sparkle-check">
+        <span>É realmente bom? Adicionar brilho <strong id="clickable-sparkle-emoji" class="clickable-sparkle" title="Clique para lançar confetes!">✨</strong></span>
+      </label>
+
+      <div class="modal-actions">
+        <button id="btn-save-rating" class="btn-save">Salvar Avaliação</button>
+        <button id="btn-open-journal-from-modal" class="btn-journal">📖 Abrir Review Page</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal / Páginas Estilo Journal -->
+  <div id="journal-modal" class="modal-overlay hidden">
+    <div class="journal-page-container box">
+      <button id="btn-close-journal" class="btn-close-journal">✖ Fechar Página</button>
+      
+      <div class="journal-paper">
+        <div class="journal-corner-badge" id="journal-corner-badge">🎬 🍿 ✨</div>
+        <div class="washi-tape"></div>
+
+        <!-- Header da Página -->
+        <div class="journal-header">
+          <div class="cover-upload-section">
+            <div class="cover-frame" id="cover-frame" title="Clique para adicionar ou trocar capa">
+              <img id="journal-cover-img" src="" alt="Capa" class="cover-img hidden">
+              <div id="cover-placeholder" class="cover-placeholder">
+                <span>🖼️<br>Clique para adicionar capa</span>
+              </div>
+            </div>
+            <input type="file" id="cover-file-input" accept="image/*" class="hidden">
+          </div>
+
+          <div class="journal-title-section">
+            <h1 id="journal-title-display" class="fixed-title"><span>🎬</span> Título da Mídia</h1>
+            <input type="text" id="j-author" class="journal-input input-author" placeholder="por Autor / Diretor">
+          </div>
+        </div>
+
+        <!-- Grid Interno -->
+        <div class="journal-grid">
+          
+          <div class="journal-block info-block">
+            <h3 class="fixed-label">FORMAT & DETAILS</h3>
+            
+            <div class="info-row">
+              <span class="fixed-label">FORMAT:</span>
+              <span id="j-format-text" class="info-value-static">Filme</span>
+            </div>
+
+            <div class="info-row">
+              <span class="fixed-label">GENRE:</span>
+              <input type="text" id="j-genre" class="journal-input" placeholder="Ex: Sci-Fi / Romance">
+            </div>
+
+            <div class="info-row" id="row-pages">
+              <span class="fixed-label" id="label-pages">PAGES:</span>
+              <input type="number" id="j-pages" class="journal-input" placeholder="Ex: 350">
+            </div>
+
+            <div class="info-row" id="row-episodes">
+              <span class="fixed-label">EPISODES:</span>
+              <input type="number" id="j-episodes" class="journal-input" placeholder="Ex: 10">
+            </div>
+
+            <div class="info-row" id="row-duration">
+              <span class="fixed-label">DURATION:</span>
+              <input type="text" id="j-duration" class="journal-input" placeholder="Ex: 2h 10m">
+            </div>
+
+            <div class="info-row">
+              <span class="fixed-label">START:</span>
+              <input type="date" id="j-start" class="journal-date-input">
+            </div>
+
+            <div class="info-row">
+              <span class="fixed-label">FINISH:</span>
+              <input type="date" id="j-finish" class="journal-date-input">
+            </div>
+
+            <div id="stats-banner" class="stats-banner hidden">
+              <p id="stats-text">📊 Carregando estatísticas...</p>
+            </div>
+
+            <div class="journal-rating-row">
+              <span class="fixed-label">RATING:</span>
+              <div id="journal-stars" class="journal-stars">
+                <span data-value="1">★</span>
+                <span data-value="2">★</span>
+                <span data-value="3">★</span>
+                <span data-value="4">★</span>
+                <span data-value="5">★</span>
+              </div>
+              <span id="journal-sparkle-badge" class="journal-sparkle-badge clickable-sparkle hidden" title="Clique para lançar confetes!">✨</span>
+            </div>
+          </div>
+
+          <div class="journal-block synopsis-block">
+            <h3 class="fixed-label">SYNOPSIS</h3>
+            <textarea id="j-synopsis" class="journal-textarea" placeholder="Escreva a sinopse rápida..."></textarea>
+          </div>
+
+          <div class="journal-block thoughts-block">
+            <h3 class="fixed-label">THOUGHTS 💭</h3>
+            <textarea id="j-thoughts" class="journal-textarea" placeholder="O que você achou deste título? Escreva seus pensamentos..."></textarea>
+          </div>
+
+          <div class="journal-block quotes-block">
+            <h3 class="fixed-label">QUOTES ✍️</h3>
+            <textarea id="j-quotes" class="journal-textarea" placeholder="★ &quot;Sua citação favorita aqui...&quot;"></textarea>
+          </div>
+
+        </div>
+
+        <div class="journal-footer">
+          <button id="btn-save-journal" class="btn-save-journal">💾 Salvar Página do Diário</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="plotverso.js"></script>
+</body>
+</html>
