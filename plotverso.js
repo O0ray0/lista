@@ -1,426 +1,585 @@
 /* ==========================================================================
-   PLOTVERSO - LÓGICA COMPLETA E ATUALIZADA
-   ========================================================================== */
-
-let mediaItems = JSON.parse(localStorage.getItem('plotverso_items')) || [];
-let activeTab = 'active'; // 'active' ou 'completed'
-let currentFilter = 'all';
-let currentEditId = null;
-let currentRating = 0;
-let currentJournalRating = 0;
-
-// Mapeamento de tipos e emojis do canto superior esquerdo
-const typeInfo = {
-  'movie': { label: 'Filme', emoji: '🎬' },
-  'book': { label: 'Livro', emoji: '📚' },
-  'show': { label: 'Série', emoji: '📺' },
-  'mc-show': { label: 'Minecraft Série', emoji: '⛏📺' },
-  'mc-movie': { label: 'Minecraft Filme', emoji: '⛏🎬' }
-};
-
-// Elementos do DOM
-const mediaForm = document.getElementById('media-form');
-const titleInput = document.getElementById('title-input');
-const typeSelect = document.getElementById('type-select');
-const mediaList = document.getElementById('media-list');
-const counter = document.getElementById('counter');
-
-const tabActive = document.getElementById('tab-active');
-const tabCompleted = document.getElementById('tab-completed');
-const filterSelect = document.getElementById('filter-select');
-
-// Modais
-const ratingModal = document.getElementById('rating-modal');
-const modalItemTitle = document.getElementById('modal-item-title');
-const starRatingContainer = document.getElementById('star-rating');
-const btnSaveRating = document.getElementById('btn-save-rating');
-const btnOpenJournalFromModal = document.getElementById('btn-open-journal-from-modal');
-const sparkleEmoji = document.getElementById('clickable-sparkle-emoji');
-
-const journalModal = document.getElementById('journal-modal');
-const btnCloseJournal = document.getElementById('btn-close-journal');
-const btnSaveJournal = document.getElementById('btn-save-journal');
-
-// Elementos do Diário
-const coverFrame = document.getElementById('cover-frame');
-const coverImg = document.getElementById('journal-cover-img');
-const coverPlaceholder = document.getElementById('cover-placeholder');
-const coverFileInput = document.getElementById('cover-file-input');
-const journalTitleDisplay = document.getElementById('journal-title-display');
-
-const jAuthor = document.getElementById('j-author');
-const jFormatText = document.getElementById('j-format-text');
-const jGenre = document.getElementById('j-genre');
-const jTime = document.getElementById('j-time');
-const jStart = document.getElementById('j-start');
-const jFinish = document.getElementById('j-finish');
-const journalStarsContainer = document.getElementById('journal-stars');
-
-const jSynopsis = document.getElementById('j-synopsis');
-const jThoughts = document.getElementById('j-thoughts');
-const jQuotes = document.getElementById('j-quotes');
-
-/* ==========================================================================
-   INICIALIZAÇÃO E EVENTOS
+   PLOTVERSO - COM POP-UP POST-IT DE DUPLICADOS
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
-  renderList();
-  setupPlaceholders();
 
-  // Adicionar item
-  mediaForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const title = titleInput.value.trim();
-    const type = typeSelect.value;
+  // 1. PALETA DE CORES (Confetes)
+  const candyColors = [
+    '#FF3197', '#FF99DF', '#FFAC8F', '#FEFDB2', '#6CEBEF', '#9BB7E8'
+  ];
 
-    if (!title) return;
+  // 2. CELEBRAÇÃO / CONFETES
+  function triggerCelebration(type) {
+    if (typeof confetti !== 'undefined') {
+      confetti({
+        particleCount: 150,
+        spread: 100,
+        startVelocity: 50,
+        origin: { y: 0.6 },
+        colors: candyColors,
+        ticks: 250
+      });
 
+      let scalarEmoji = '🎬';
+      if (type === 'book') scalarEmoji = '📚';
+      if (type === 'show') scalarEmoji = '📺';
+      if (type === 'mc-show') scalarEmoji = '⛏️';
+      if (type === 'mc-movie') scalarEmoji = '🧱';
+
+      confetti({
+        particleCount: 25,
+        spread: 120,
+        startVelocity: 40,
+        origin: { y: 0.6 },
+        shapes: [confetti.shapeFromText({ text: scalarEmoji, scalar: 2.5 })],
+        scalar: 2.5,
+        ticks: 200
+      });
+    }
+  }
+
+  window.triggerCelebration = triggerCelebration;
+
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, tag => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      "'": '&#39;',
+      '"': '&quot;'
+    }[tag] || tag));
+  }
+
+  // 3. DETECÇÃO INTELIGENTE DE DUPLICADOS
+  function normalizeText(text) {
+    return text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+  }
+
+  function getLevenshteinDistance(a, b) {
+    const matrix = Array.from({ length: a.length + 1 }, () => Array(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= b.length; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return matrix[a.length][b.length];
+  }
+
+  function findSimilarItem(newTitle) {
+    const normNew = normalizeText(newTitle);
+    if (!normNew) return null;
+
+    for (const item of items) {
+      const normExist = normalizeText(item.title);
+
+      if (normNew === normExist) {
+        return item;
+      }
+
+      const maxLen = Math.max(normNew.length, normExist.length);
+      const dist = getLevenshteinDistance(normNew, normExist);
+      const allowedErrors = maxLen <= 5 ? 1 : Math.floor(maxLen * 0.25);
+
+      if (dist <= allowedErrors) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  // 4. ESTADO DA APLICAÇÃO
+  let items = [];
+  try {
+    items = JSON.parse(localStorage.getItem('plotverso_items')) || [];
+  } catch (e) {
+    console.error('Erro ao carregar do localStorage:', e);
+    items = [];
+  }
+
+  let currentItemId = null;
+  let tempRating = 0;
+  let tempJournalRating = 0;
+  let pendingTitleToAdd = null;
+  let pendingTypeToAdd = null;
+
+  let activeTab = 'all'; 
+  let activeFilter = 'all';
+
+  function saveItems() {
+    try {
+      localStorage.setItem('plotverso_items', JSON.stringify(items));
+    } catch (e) {
+      alert('Aviso: Não foi possível salvar no navegador.');
+    }
+    renderMediaList();
+  }
+
+  // 5. ELEMENTOS DO DOM
+  const mediaForm = document.getElementById('media-form');
+  const titleInput = document.getElementById('title-input');
+  const typeSelect = document.getElementById('type-select');
+  const mediaList = document.getElementById('media-list');
+  const counterBadge = document.getElementById('counter');
+  const filterSelect = document.getElementById('filter-select');
+  const listTitle = document.getElementById('list-title');
+  const tabAll = document.getElementById('tab-all');
+  const tabCompleted = document.getElementById('tab-completed');
+
+  // Modais
+  const ratingModal = document.getElementById('rating-modal');
+  const modalItemTitle = document.getElementById('modal-item-title');
+  const starRatingContainer = document.getElementById('star-rating');
+  const sparkleCheck = document.getElementById('sparkle-check');
+  const btnSaveRating = document.getElementById('btn-save-rating');
+  const btnOpenJournalFromModal = document.getElementById('btn-open-journal-from-modal');
+
+  const journalModal = document.getElementById('journal-modal');
+  const btnCloseJournal = document.getElementById('btn-close-journal');
+  const btnSaveJournal = document.getElementById('btn-save-journal');
+
+  // Pop-up Post-it Duplicado
+  const duplicateModal = document.getElementById('duplicate-modal');
+  const duplicateItemInfo = document.getElementById('duplicate-item-info');
+  const btnAddAnyway = document.getElementById('btn-add-anyway');
+  const btnDismissDuplicate = document.getElementById('btn-dismiss-duplicate');
+
+  // Campos Journal
+  const journalTitleDisplay = document.getElementById('journal-title-display');
+  const journalCornerBadge = document.getElementById('journal-corner-badge');
+  const jAuthor = document.getElementById('j-author');
+  const jFormatText = document.getElementById('j-format-text');
+  const jGenre = document.getElementById('j-genre');
+  const jPages = document.getElementById('j-pages');
+  const jEpisodes = document.getElementById('j-episodes');
+  const jDuration = document.getElementById('j-duration');
+  const jStart = document.getElementById('j-start');
+  const jFinish = document.getElementById('j-finish');
+  const jSynopsis = document.getElementById('j-synopsis');
+  const jThoughts = document.getElementById('j-thoughts');
+  const jQuotes = document.getElementById('j-quotes');
+  const journalStarsContainer = document.getElementById('journal-stars');
+  const journalSparkleBadge = document.getElementById('journal-sparkle-badge');
+  const statsBanner = document.getElementById('stats-banner');
+  const statsText = document.getElementById('stats-text');
+
+  // Upload Capa
+  const coverFrame = document.getElementById('cover-frame');
+  const coverFileInput = document.getElementById('cover-file-input');
+  const journalCoverImg = document.getElementById('journal-cover-img');
+  const coverPlaceholder = document.getElementById('cover-placeholder');
+
+  // Linhas condicionais
+  const rowPages = document.getElementById('row-pages');
+  const rowEpisodes = document.getElementById('row-episodes');
+  const rowDuration = document.getElementById('row-duration');
+
+  const typeIcons = { 
+    movie: '🎬', 
+    show: '📺', 
+    book: '📚', 
+    'mc-show': '⛏📺 ࿔*:･', 
+    'mc-movie': '⛏🎬 ࿔*:･' 
+  };
+
+  const typeLabels = {
+    movie: 'Filme',
+    show: 'Série',
+    book: 'Livro',
+    'mc-show': 'Minecraft Série',
+    'mc-movie': 'Minecraft Filme'
+  };
+
+  // 6. RENDERIZAÇÃO DA LISTA
+  function renderMediaList() {
+    if (!mediaList) return;
+    mediaList.innerHTML = '';
+
+    let filtered = items.filter(item => {
+      if (activeTab === 'completed') return item.completed === true;
+      return true;
+    });
+
+    filtered = filtered.filter(item => {
+      if (activeFilter === 'all') return true;
+      if (activeFilter === 'minecraft') return item.type === 'mc-show' || item.type === 'mc-movie';
+      return item.type === activeFilter;
+    });
+
+    if (counterBadge) {
+      counterBadge.textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'}`;
+    }
+
+    if (filtered.length === 0) {
+      mediaList.innerHTML = `<li style="padding:15px; text-align:center; color:#8C0902;">Nenhum item encontrado nesta exibição! ✨</li>`;
+      return;
+    }
+
+    filtered.forEach(item => {
+      const li = document.createElement('li');
+      li.className = `media-item ${item.completed ? 'completed' : ''}`;
+
+      const icon = typeIcons[item.type] || '🍿';
+      const starsDisplay = item.rating ? '★'.repeat(item.rating) : 'Sem nota';
+      const sparkleDisplay = item.sparkle ? '✨' : '';
+
+      li.innerHTML = `
+        <div class="item-left">
+          <input type="checkbox" class="custom-check" data-id="${item.id}" ${item.completed ? 'checked' : ''}>
+          <span class="item-title">${icon} ${escapeHTML(item.title)}</span>
+        </div>
+        <div class="item-right">
+          <span class="rating-badge">${starsDisplay} ${sparkleDisplay}</span>
+          <button class="btn-open-journal" data-id="${item.id}">📖 Journal</button>
+          <button class="btn-delete" data-id="${item.id}">🗑️</button>
+        </div>
+      `;
+
+      mediaList.appendChild(li);
+    });
+
+    attachListEvents();
+  }
+
+  // EVENTOS DAS ABAS
+  if (tabAll && tabCompleted) {
+    tabAll.addEventListener('click', () => {
+      activeTab = 'all';
+      tabAll.classList.add('active');
+      tabCompleted.classList.remove('active');
+      if (listTitle) listTitle.textContent = 'Minha Coleção';
+      renderMediaList();
+    });
+
+    tabCompleted.addEventListener('click', () => {
+      activeTab = 'completed';
+      tabCompleted.classList.add('active');
+      tabAll.classList.remove('active');
+      if (listTitle) listTitle.textContent = 'Itens Concluídos';
+      renderMediaList();
+    });
+  }
+
+  if (filterSelect) {
+    filterSelect.addEventListener('change', (e) => {
+      activeFilter = e.target.value;
+      renderMediaList();
+    });
+  }
+
+  function attachListEvents() {
+    document.querySelectorAll('.custom-check').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const id = e.target.getAttribute('data-id');
+        const item = items.find(i => i.id === id);
+        if (item) {
+          item.completed = e.target.checked;
+          if (item.completed) triggerCelebration(item.type);
+          saveItems();
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-open-journal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        openJournalModal(btn.getAttribute('data-id'));
+      });
+    });
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (confirm('Deseja realmente excluir este título?')) {
+          items = items.filter(i => i.id !== id);
+          saveItems();
+        }
+      });
+    });
+  }
+
+  // FUNÇÃO DE ADICIONAR ITEM NA LISTA
+  function createNewItem(title, type) {
     const newItem = {
       id: Date.now().toString(),
       title: title,
       type: type,
       completed: false,
       rating: 0,
-      journal: {
-        cover: '',
-        author: '',
-        genre: '',
-        time: '',
-        start: '',
-        finish: '',
-        synopsis: '',
-        thoughts: '',
-        quotes: ''
-      }
+      sparkle: false,
+      author: '',
+      genre: '',
+      pages: '',
+      episodes: '',
+      duration: '',
+      startDate: '',
+      finishDate: '',
+      synopsis: '',
+      thoughts: '',
+      quotes: '',
+      coverUrl: ''
     };
 
-    mediaItems.unshift(newItem);
-    saveToLocalStorage();
+    items.unshift(newItem);
+    saveItems();
     titleInput.value = '';
-    renderList();
-  });
 
-  // Troca de Abas
-  tabActive.addEventListener('click', () => {
-    activeTab = 'active';
-    tabActive.classList.add('active');
-    tabCompleted.classList.remove('active');
-    renderList();
-  });
-
-  tabCompleted.addEventListener('click', () => {
-    activeTab = 'completed';
-    tabCompleted.classList.add('active');
-    tabActive.classList.remove('active');
-    renderList();
-  });
-
-  // Filtro
-  filterSelect.addEventListener('change', (e) => {
-    currentFilter = e.target.value;
-    renderList();
-  });
-
-  // Estrelas
-  setupStars(starRatingContainer, (rating) => { currentRating = rating; });
-  setupStars(journalStarsContainer, (rating) => { currentJournalRating = rating; });
-
-  // Confetti no emoji interativo
-  if (sparkleEmoji) {
-    sparkleEmoji.addEventListener('click', () => triggerConfetti());
+    triggerCelebration(type);
+    openRatingModal(newItem.id);
   }
 
-  // Salvar Avaliação Rápida
-  btnSaveRating.addEventListener('click', () => {
-    if (!currentEditId) return;
-    const item = mediaItems.find(i => i.id === currentEditId);
-    if (item) {
-      item.rating = currentRating;
-      saveToLocalStorage();
-      renderList();
-      closeRatingModal();
+  // 7. FORMULÁRIO COM POP-UP POST-IT DE DUPLICADO
+  if (mediaForm) {
+    mediaForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = titleInput.value.trim();
+      const type = typeSelect.value;
+
+      if (!title) return;
+
+      const similarItem = findSimilarItem(title);
+      if (similarItem) {
+        pendingTitleToAdd = title;
+        pendingTypeToAdd = type;
+
+        if (duplicateItemInfo) {
+          duplicateItemInfo.textContent = `Parece com "${similarItem.title}" que já está salvo!`;
+        }
+        duplicateModal.classList.remove('hidden');
+        return;
+      }
+
+      createNewItem(title, type);
+    });
+  }
+
+  // EVENTOS DO POP-UP POST-IT
+  if (btnAddAnyway) {
+    btnAddAnyway.addEventListener('click', () => {
+      if (pendingTitleToAdd && pendingTypeToAdd) {
+        createNewItem(pendingTitleToAdd, pendingTypeToAdd);
+      }
+      duplicateModal.classList.add('hidden');
+      pendingTitleToAdd = null;
+      pendingTypeToAdd = null;
+    });
+  }
+
+  if (btnDismissDuplicate) {
+    btnDismissDuplicate.addEventListener('click', () => {
+      duplicateModal.classList.add('hidden');
+      pendingTitleToAdd = null;
+      pendingTypeToAdd = null;
+    });
+  }
+
+  // 8. MODAL DE AVALIAÇÃO RÁPIDA
+  function openRatingModal(id) {
+    currentItemId = id;
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    modalItemTitle.textContent = item.title;
+    tempRating = item.rating || 0;
+    sparkleCheck.checked = !!item.sparkle;
+    updateStars(starRatingContainer, tempRating);
+
+    ratingModal.classList.remove('hidden');
+  }
+
+  function updateStars(container, rating) {
+    if (!container) return;
+    const stars = container.querySelectorAll('span');
+    stars.forEach(star => {
+      const val = parseInt(star.getAttribute('data-value'), 10);
+      star.classList.toggle('active', val <= rating);
+    });
+  }
+
+  if (starRatingContainer) {
+    starRatingContainer.querySelectorAll('span').forEach(star => {
+      star.addEventListener('click', () => {
+        tempRating = parseInt(star.getAttribute('data-value'), 10);
+        updateStars(starRatingContainer, tempRating);
+      });
+    });
+  }
+
+  if (btnSaveRating) {
+    btnSaveRating.addEventListener('click', () => {
+      const item = items.find(i => i.id === currentItemId);
+      if (item) {
+        item.rating = tempRating;
+        item.sparkle = sparkleCheck.checked;
+        saveItems();
+      }
+      ratingModal.classList.add('hidden');
+    });
+  }
+
+  if (btnOpenJournalFromModal) {
+    btnOpenJournalFromModal.addEventListener('click', () => {
+      const id = currentItemId;
+      ratingModal.classList.add('hidden');
+      openJournalModal(id);
+    });
+  }
+
+  // 9. MODAL JOURNAL REVIEW PAGE
+  function openJournalModal(id) {
+    currentItemId = id;
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    const icon = typeIcons[item.type] || '🍿';
+    journalTitleDisplay.innerHTML = `<span>${icon}</span> ${escapeHTML(item.title)}`;
+    journalCornerBadge.textContent = `${icon} ${(item.type || '').toUpperCase()} ✨`;
+
+    jAuthor.value = item.author || '';
+    jFormatText.textContent = typeLabels[item.type] || 'Outro';
+    jGenre.value = item.genre || '';
+    jPages.value = item.pages || '';
+    jEpisodes.value = item.episodes || '';
+    jDuration.value = item.duration || '';
+    jStart.value = item.startDate || '';
+    jFinish.value = item.finishDate || '';
+    jSynopsis.value = item.synopsis || '';
+    jThoughts.value = item.thoughts || '';
+    jQuotes.value = item.quotes || '';
+
+    tempJournalRating = item.rating || 0;
+    updateStars(journalStarsContainer, tempJournalRating);
+
+    journalSparkleBadge.classList.toggle('hidden', !item.sparkle);
+
+    if (rowPages) rowPages.style.display = item.type === 'book' ? 'flex' : 'none';
+    if (rowEpisodes) rowEpisodes.style.display = (item.type === 'show' || item.type === 'mc-show') ? 'flex' : 'none';
+    if (rowDuration) rowDuration.style.display = (item.type === 'movie' || item.type === 'mc-movie') ? 'flex' : 'none';
+
+    if (item.coverUrl) {
+      journalCoverImg.src = item.coverUrl;
+      journalCoverImg.classList.remove('hidden');
+      coverPlaceholder.classList.add('hidden');
+    } else {
+      journalCoverImg.classList.add('hidden');
+      coverPlaceholder.classList.remove('hidden');
     }
-  });
 
-  btnOpenJournalFromModal.addEventListener('click', () => {
-    closeRatingModal();
-    openJournalModal(currentEditId);
-  });
+    calculateStats();
+    journalModal.classList.remove('hidden');
+  }
 
-  btnCloseJournal.addEventListener('click', closeJournalModal);
+  if (journalStarsContainer) {
+    journalStarsContainer.querySelectorAll('span').forEach(star => {
+      star.addEventListener('click', () => {
+        tempJournalRating = parseInt(star.getAttribute('data-value'), 10);
+        updateStars(journalStarsContainer, tempJournalRating);
+      });
+    });
+  }
 
-  // Upload da Imagem da Capa
-  coverFrame.addEventListener('click', () => coverFileInput.click());
-  coverFileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        coverImg.src = event.target.result;
-        coverImg.classList.remove('hidden');
-        coverPlaceholder.classList.add('hidden');
-      };
-      reader.readAsDataURL(file);
+  // Upload Capa
+  if (coverFrame && coverFileInput) {
+    coverFrame.addEventListener('click', () => coverFileInput.click());
+
+    coverFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (evt) {
+          const coverUrl = evt.target.result;
+          journalCoverImg.src = coverUrl;
+          journalCoverImg.classList.remove('hidden');
+          coverPlaceholder.classList.add('hidden');
+
+          const item = items.find(i => i.id === currentItemId);
+          if (item) item.coverUrl = coverUrl;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Estatísticas
+  function calculateStats() {
+    if (jStart.value && jFinish.value) {
+      const start = new Date(jStart.value);
+      const finish = new Date(jFinish.value);
+      const diffDays = Math.ceil((finish - start) / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 0) {
+        statsBanner.classList.remove('hidden');
+        statsText.textContent = `📊 Concluído em ${diffDays === 0 ? '1 dia (no mesmo dia!)' : diffDays + ' dias'}! 🎉`;
+      } else {
+        statsBanner.classList.add('hidden');
+      }
+    } else {
+      statsBanner.classList.add('hidden');
     }
-  });
+  }
 
-  // Máscaras e Cálculos de Data
   [jStart, jFinish].forEach(input => {
-    input.addEventListener('input', (e) => {
-      formatDateInput(e.target);
-      calculateStats();
+    if (input) input.addEventListener('change', calculateStats);
+  });
+
+  // Salvar Journal
+  if (btnSaveJournal) {
+    btnSaveJournal.addEventListener('click', () => {
+      const item = items.find(i => i.id === currentItemId);
+      if (item) {
+        item.author = jAuthor.value;
+        item.genre = jGenre.value;
+        item.pages = jPages.value;
+        item.episodes = jEpisodes.value;
+        item.duration = jDuration.value;
+        item.startDate = jStart.value;
+        item.finishDate = jFinish.value;
+        item.synopsis = jSynopsis.value;
+        item.thoughts = jThoughts.value;
+        item.quotes = jQuotes.value;
+        item.rating = tempJournalRating;
+
+        saveItems();
+        triggerCelebration(item.type);
+      }
+      journalModal.classList.add('hidden');
+    });
+  }
+
+  if (btnCloseJournal) {
+    btnCloseJournal.addEventListener('click', () => journalModal.classList.add('hidden'));
+  }
+
+  document.querySelectorAll('.clickable-sparkle').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      triggerCelebration('mc-movie');
     });
   });
 
-  jTime.addEventListener('input', calculateStats);
-
-  // Salvar Diário
-  btnSaveJournal.addEventListener('click', () => {
-    if (!currentEditId) return;
-    const item = mediaItems.find(i => i.id === currentEditId);
-
-    if (item) {
-      item.rating = currentJournalRating;
-      item.journal = {
-        cover: coverImg.classList.contains('hidden') ? '' : coverImg.src,
-        author: jAuthor.value,
-        genre: jGenre.value,
-        time: jTime.value,
-        start: jStart.value,
-        finish: jFinish.value,
-        synopsis: jSynopsis.value,
-        thoughts: jThoughts.value,
-        quotes: jQuotes.value
-      };
-
-      saveToLocalStorage();
-      renderList();
-      closeJournalModal();
-      triggerConfetti();
+  // Fechar modais clicando no fundo
+  [ratingModal, journalModal, duplicateModal].forEach(modal => {
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.add('hidden');
+        }
+      });
     }
   });
+
+  renderMediaList();
 });
-
-/* ==========================================================================
-   MÁSCARAS, PLACEHOLDERS E CÁLCULOS
-   ========================================================================== */
-
-// Placeholders dinâmicos que limpam no foco e voltam no blur
-function setupPlaceholders() {
-  const inputs = document.querySelectorAll('#journal-modal input, #journal-modal textarea');
-  inputs.forEach(input => {
-    const originalPlaceholder = input.placeholder;
-    input.addEventListener('focus', () => {
-      input.dataset.ph = originalPlaceholder;
-      input.placeholder = '';
-    });
-    input.addEventListener('blur', () => {
-      if (!input.value.trim()) {
-        input.placeholder = input.dataset.ph || originalPlaceholder;
-      }
-    });
-  });
-}
-
-// Máscara de data fixa DD/MM/AAAA
-function formatDateInput(input) {
-  let v = input.value.replace(/\D/g, '');
-  if (v.length > 8) v = v.substring(0, 8);
-  if (v.length > 4) {
-    input.value = `${v.substring(0, 2)}/${v.substring(2, 4)}/${v.substring(4)}`;
-  } else if (v.length > 2) {
-    input.value = `${v.substring(0, 2)}/${v.substring(2)}`;
-  } else {
-    input.value = v;
-  }
-}
-
-// Cálculo de dias e estatísticas (Páginas/dia ou Episódios)
-function calculateStats() {
-  const statsBox = document.getElementById('journal-stats-info');
-  if (!statsBox) return;
-
-  const item = mediaItems.find(i => i.id === currentEditId);
-  if (!item) return;
-
-  const startVal = parseDate(jStart.value);
-  const finishVal = parseDate(jFinish.value);
-
-  if (!startVal || !finishVal || finishVal < startVal) {
-    statsBox.innerHTML = '';
-    return;
-  }
-
-  const diffTime = Math.abs(finishVal - startVal);
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
-
-  let extraInfo = `⏱️ Você levou <strong>${diffDays} dia(s)</strong> para concluir.`;
-
-  const amount = parseInt(jTime.value.replace(/\D/g, '')) || 0;
-
-  if (item.type === 'book' && amount > 0) {
-    const pagesPerDay = (amount / diffDays).toFixed(1);
-    extraInfo += `<br>📖 Média de <strong>${pagesPerDay} páginas/dia</strong> (${amount} págs no total).`;
-  } else if ((item.type === 'show' || item.type === 'mc-show') && amount > 0) {
-    const epsPerDay = (amount / diffDays).toFixed(1);
-    extraInfo += `<br>📺 Média de <strong>${epsPerDay} episódios/dia</strong> (${amount} eps no total).`;
-  }
-
-  statsBox.innerHTML = extraInfo;
-}
-
-function parseDate(str) {
-  const parts = str.split('/');
-  if (parts.length === 3 && parts[2].length === 4) {
-    return new Date(parts[2], parts[1] - 1, parts[0]);
-  }
-  return null;
-}
-
-/* ==========================================================================
-   RENDERIZAÇÃO DA LISTA E MODAIS
-   ========================================================================== */
-
-function renderList() {
-  mediaList.innerHTML = '';
-
-  const filtered = mediaItems.filter(item => {
-    const matchesTab = activeTab === 'completed' ? item.completed : !item.completed;
-    const matchesType = currentFilter === 'all' ? true : item.type === currentFilter;
-    return matchesTab && matchesType;
-  });
-
-  counter.textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'}`;
-
-  filtered.forEach(item => {
-    const li = document.createElement('li');
-    li.className = `media-item ${item.completed ? 'completed' : ''}`;
-    const starsDisplay = item.rating > 0 ? '★'.repeat(item.rating) : '☆☆☆☆☆';
-
-    li.innerHTML = `
-      <div class="item-left">
-        <input type="checkbox" class="custom-check" ${item.completed ? 'checked' : ''} data-id="${item.id}">
-        <span class="item-title">${escapeHtml(item.title)}</span>
-      </div>
-      <div class="item-right">
-        <span class="rating-badge">${starsDisplay}</span>
-        <button class="btn-open-journal" data-id="${item.id}">Journal Page</button>
-        <button class="btn-delete" data-id="${item.id}">&times;</button>
-      </div>
-    `;
-
-    li.querySelector('.custom-check').addEventListener('change', (e) => {
-      const id = e.target.getAttribute('data-id');
-      const targetItem = mediaItems.find(i => i.id === id);
-      if (targetItem) {
-        targetItem.completed = e.target.checked;
-        saveToLocalStorage();
-        if (targetItem.completed) openRatingModal(id);
-        else renderList();
-      }
-    });
-
-    li.querySelector('.btn-open-journal').addEventListener('click', (e) => {
-      openJournalModal(e.target.getAttribute('data-id'));
-    });
-
-    li.querySelector('.btn-delete').addEventListener('click', (e) => {
-      mediaItems = mediaItems.filter(i => i.id !== e.target.getAttribute('data-id'));
-      saveToLocalStorage();
-      renderList();
-    });
-
-    mediaList.appendChild(li);
-  });
-}
-
-function openJournalModal(id) {
-  currentEditId = id;
-  const item = mediaItems.find(i => i.id === id);
-  if (!item) return;
-
-  const info = typeInfo[item.type] || { label: item.type, emoji: '✨' };
-
-  // Atualizar Emoji do canto superior esquerdo
-  const cornerEmoji = document.getElementById('journal-corner-emoji');
-  if (cornerEmoji) cornerEmoji.textContent = info.emoji;
-
-  journalTitleDisplay.textContent = item.title;
-  jFormatText.textContent = info.label;
-
-  const j = item.journal || {};
-  jAuthor.value = j.author || '';
-  jGenre.value = j.genre || '';
-  jTime.value = j.time || '';
-  jStart.value = j.start || '';
-  jFinish.value = j.finish || '';
-  jSynopsis.value = j.synopsis || '';
-  jThoughts.value = j.thoughts || '';
-  jQuotes.value = j.quotes || '';
-
-  if (j.cover) {
-    coverImg.src = j.cover;
-    coverImg.classList.remove('hidden');
-    coverPlaceholder.classList.add('hidden');
-  } else {
-    coverImg.src = '';
-    coverImg.classList.add('hidden');
-    coverPlaceholder.classList.remove('hidden');
-  }
-
-  currentJournalRating = item.rating || 0;
-  highlightStars(journalStarsContainer.querySelectorAll('span'), currentJournalRating);
-
-  calculateStats();
-  journalModal.classList.remove('hidden');
-}
-
-function openRatingModal(id) {
-  currentEditId = id;
-  const item = mediaItems.find(i => i.id === id);
-  if (!item) return;
-
-  modalItemTitle.textContent = `Avaliar: ${item.title}`;
-  currentRating = item.rating || 0;
-  highlightStars(starRatingContainer.querySelectorAll('span'), currentRating);
-  ratingModal.classList.remove('hidden');
-}
-
-function closeRatingModal() { ratingModal.classList.add('hidden'); }
-function closeJournalModal() { journalModal.classList.add('hidden'); }
-
-function setupStars(container, callback) {
-  const stars = container.querySelectorAll('span');
-  stars.forEach(star => {
-    star.addEventListener('click', () => {
-      const val = parseInt(star.getAttribute('data-value'));
-      highlightStars(stars, val);
-      callback(val);
-    });
-  });
-}
-
-function highlightStars(stars, count) {
-  stars.forEach(star => {
-    const val = parseInt(star.getAttribute('data-value'));
-    if (val <= count) star.classList.add('active');
-    else star.classList.remove('active');
-  });
-}
-
-function triggerConfetti() {
-  if (window.confetti) {
-    confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
-  }
-}
-
-function saveToLocalStorage() {
-  localStorage.setItem('plotverso_items', JSON.stringify(mediaItems));
-}
-
-function escapeHtml(str) {
-  return str.replace(/[&<>"']/g, (m) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
-  })[m]);
-}
