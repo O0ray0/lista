@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PLOTVERSO - COM POP-UP POST-IT DE DUPLICADOS
+   PLOTVERSO - SCRIPT COMPLETO
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -117,7 +117,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingTitleToAdd = null;
   let pendingTypeToAdd = null;
 
-  let activeTab = 'all'; 
+  // 'pending' = Para Assistir / Ler (Padrão)
+  // 'completed' = Concluídos / Assistidos
+  let activeTab = 'pending'; 
   let activeFilter = 'all';
 
   function saveItems() {
@@ -160,7 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Campos Journal
   const journalTitleDisplay = document.getElementById('journal-title-display');
-  const journalCornerBadge = document.getElementById('journal-corner-badge');
   const jAuthor = document.getElementById('j-author');
   const jFormatText = document.getElementById('j-format-text');
   const jGenre = document.getElementById('j-genre');
@@ -192,8 +193,8 @@ document.addEventListener('DOMContentLoaded', () => {
     movie: '🎬', 
     show: '📺', 
     book: '📚', 
-    'mc-show': '⛏📺 ࿔*:･', 
-    'mc-movie': '⛏🎬 ࿔*:･' 
+    'mc-show': '⛏📺', 
+    'mc-movie': '⛏🎬' 
   };
 
   const typeLabels = {
@@ -204,19 +205,23 @@ document.addEventListener('DOMContentLoaded', () => {
     'mc-movie': 'Minecraft Filme'
   };
 
-  // 6. RENDERIZAÇÃO DA LISTA
+  // 6. RENDERIZAÇÃO DA LISTA COM SEPARAÇÃO DE ABAS
   function renderMediaList() {
     if (!mediaList) return;
     mediaList.innerHTML = '';
 
+    // SEPARAÇÃO DA LISTA:
+    // Se estiver na aba 'pending', exibe apenas não-concluídos (!item.completed)
+    // Se estiver na aba 'completed', exibe apenas concluídos (item.completed)
     let filtered = items.filter(item => {
-      if (activeTab === 'completed') return item.completed === true;
+      if (activeTab === 'pending') return !item.completed;
+      if (activeTab === 'completed') return item.completed;
       return true;
     });
 
+    // Aplica o filtro de tipo (Filme, Série, Livro, etc.)
     filtered = filtered.filter(item => {
       if (activeFilter === 'all') return true;
-      if (activeFilter === 'minecraft') return item.type === 'mc-show' || item.type === 'mc-movie';
       return item.type === activeFilter;
     });
 
@@ -225,93 +230,69 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (filtered.length === 0) {
-      mediaList.innerHTML = `<li style="padding:15px; text-align:center; color:#8C0902;">Nenhum item encontrado nesta exibição! ✨</li>`;
+      const emptyMsg = activeTab === 'completed' 
+        ? 'Nenhum item concluído ainda! ✨' 
+        : 'Sua lista para assistir/ler está vazia! ✨';
+      mediaList.innerHTML = `<li style="padding:15px; text-align:center; color:#8C0902;">${emptyMsg}</li>`;
       return;
     }
 
     filtered.forEach(item => {
       const li = document.createElement('li');
       li.className = `media-item ${item.completed ? 'completed' : ''}`;
-
-      const icon = typeIcons[item.type] || '🍿';
-      const starsDisplay = item.rating ? '★'.repeat(item.rating) : 'Sem nota';
-      const sparkleDisplay = item.sparkle ? '✨' : '';
+      
+      const icon = typeIcons[item.type] || '📁';
+      const ratingStars = item.rating > 0 ? '★'.repeat(item.rating) : 'Sem nota';
+      const sparkle = item.sparkle ? '✨' : '';
 
       li.innerHTML = `
         <div class="item-left">
-          <input type="checkbox" class="custom-check" data-id="${item.id}" ${item.completed ? 'checked' : ''}>
+          <input type="checkbox" class="custom-check" ${item.completed ? 'checked' : ''} data-id="${item.id}">
           <span class="item-title">${icon} ${escapeHTML(item.title)}</span>
         </div>
         <div class="item-right">
-          <span class="rating-badge">${starsDisplay} ${sparkleDisplay}</span>
-          <button class="btn-open-journal" data-id="${item.id}">📖 Journal</button>
-          <button class="btn-delete" data-id="${item.id}">🗑️</button>
+          ${item.completed ? `<span class="rating-badge">${ratingStars} ${sparkle}</span>` : ''}
+          <button class="btn-open-journal" data-id="${item.id}">📖 Review</button>
+          <button class="btn-delete" data-id="${item.id}" title="Excluir">✖</button>
         </div>
       `;
 
       mediaList.appendChild(li);
     });
 
-    attachListEvents();
-  }
-
-  // EVENTOS DAS ABAS
-  if (tabAll && tabCompleted) {
-    tabAll.addEventListener('click', () => {
-      activeTab = 'all';
-      tabAll.classList.add('active');
-      tabCompleted.classList.remove('active');
-      if (listTitle) listTitle.textContent = 'Minha Coleção';
-      renderMediaList();
-    });
-
-    tabCompleted.addEventListener('click', () => {
-      activeTab = 'completed';
-      tabCompleted.classList.add('active');
-      tabAll.classList.remove('active');
-      if (listTitle) listTitle.textContent = 'Itens Concluídos';
-      renderMediaList();
-    });
-  }
-
-  if (filterSelect) {
-    filterSelect.addEventListener('change', (e) => {
-      activeFilter = e.target.value;
-      renderMediaList();
-    });
-  }
-
-  function attachListEvents() {
-    document.querySelectorAll('.custom-check').forEach(chk => {
+    // Eventos da Lista
+    mediaList.querySelectorAll('.custom-check').forEach(chk => {
       chk.addEventListener('change', (e) => {
         const id = e.target.getAttribute('data-id');
         const item = items.find(i => i.id === id);
         if (item) {
           item.completed = e.target.checked;
-          if (item.completed) triggerCelebration(item.type);
-          saveItems();
+          if (item.completed) {
+            triggerCelebration(item.type);
+            openRatingModal(item.id);
+          }
+          saveItems(); // Ao salvar, ele re-renderiza a lista e remove o item marcado da tela!
         }
       });
     });
 
-    document.querySelectorAll('.btn-open-journal').forEach(btn => {
-      btn.addEventListener('click', () => {
-        openJournalModal(btn.getAttribute('data-id'));
+    mediaList.querySelectorAll('.btn-open-journal').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.getAttribute('data-id');
+        openJournalModal(id);
       });
     });
 
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-id');
-        if (confirm('Deseja realmente excluir este título?')) {
-          items = items.filter(i => i.id !== id);
-          saveItems();
-        }
+    mediaList.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.getAttribute('data-id');
+        items = items.filter(i => i.id !== id);
+        saveItems();
       });
     });
   }
 
-  // FUNÇÃO DE ADICIONAR ITEM NA LISTA
+  // 7. GERENCIAMENTO DE ITENS
   function createNewItem(title, type) {
     const newItem = {
       id: Date.now().toString(),
@@ -325,23 +306,17 @@ document.addEventListener('DOMContentLoaded', () => {
       pages: '',
       episodes: '',
       duration: '',
-      startDate: '',
-      finishDate: '',
+      start: '',
+      finish: '',
       synopsis: '',
       thoughts: '',
       quotes: '',
-      coverUrl: ''
+      cover: ''
     };
-
     items.unshift(newItem);
     saveItems();
-    titleInput.value = '';
-
-    triggerCelebration(type);
-    openRatingModal(newItem.id);
   }
 
-  // 7. FORMULÁRIO COM POP-UP POST-IT DE DUPLICADO
   if (mediaForm) {
     mediaForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -350,31 +325,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!title) return;
 
-      const similarItem = findSimilarItem(title);
-      if (similarItem) {
+      const similar = findSimilarItem(title);
+      if (similar) {
         pendingTitleToAdd = title;
         pendingTypeToAdd = type;
-
         if (duplicateItemInfo) {
-          duplicateItemInfo.textContent = `Parece com "${similarItem.title}" que já está salvo!`;
+          duplicateItemInfo.textContent = `Você já possui "${similar.title}" como ${typeLabels[similar.type] || 'item'}.`;
         }
         duplicateModal.classList.remove('hidden');
-        return;
+      } else {
+        createNewItem(title, type);
+        titleInput.value = '';
       }
-
-      createNewItem(title, type);
     });
   }
 
-  // EVENTOS DO POP-UP POST-IT
   if (btnAddAnyway) {
     btnAddAnyway.addEventListener('click', () => {
       if (pendingTitleToAdd && pendingTypeToAdd) {
         createNewItem(pendingTitleToAdd, pendingTypeToAdd);
+        pendingTitleToAdd = null;
+        pendingTypeToAdd = null;
+        if (titleInput) titleInput.value = '';
       }
       duplicateModal.classList.add('hidden');
-      pendingTitleToAdd = null;
-      pendingTypeToAdd = null;
     });
   }
 
@@ -395,25 +369,29 @@ document.addEventListener('DOMContentLoaded', () => {
     modalItemTitle.textContent = item.title;
     tempRating = item.rating || 0;
     sparkleCheck.checked = !!item.sparkle;
-    updateStars(starRatingContainer, tempRating);
 
+    updateStarRatingUI(starRatingContainer, tempRating);
     ratingModal.classList.remove('hidden');
   }
 
-  function updateStars(container, rating) {
+  function updateStarRatingUI(container, rating) {
     if (!container) return;
     const stars = container.querySelectorAll('span');
-    stars.forEach(star => {
-      const val = parseInt(star.getAttribute('data-value'), 10);
-      star.classList.toggle('active', val <= rating);
+    stars.forEach(s => {
+      const val = parseInt(s.getAttribute('data-value'));
+      if (val <= rating) {
+        s.classList.add('active');
+      } else {
+        s.classList.remove('active');
+      }
     });
   }
 
   if (starRatingContainer) {
     starRatingContainer.querySelectorAll('span').forEach(star => {
       star.addEventListener('click', () => {
-        tempRating = parseInt(star.getAttribute('data-value'), 10);
-        updateStars(starRatingContainer, tempRating);
+        tempRating = parseInt(star.getAttribute('data-value'));
+        updateStarRatingUI(starRatingContainer, tempRating);
       });
     });
   }
@@ -438,60 +416,104 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 9. MODAL JOURNAL REVIEW PAGE
+  // 9. MODAL JOURNAL (REVIEW PAGE)
   function openJournalModal(id) {
     currentItemId = id;
     const item = items.find(i => i.id === id);
     if (!item) return;
 
-    const icon = typeIcons[item.type] || '🍿';
+    const icon = typeIcons[item.type] || '🎬';
     journalTitleDisplay.innerHTML = `<span>${icon}</span> ${escapeHTML(item.title)}`;
-    journalCornerBadge.textContent = `${icon} ${(item.type || '').toUpperCase()} ✨`;
-
+    jFormatText.textContent = typeLabels[item.type] || 'Mídia';
+    
     jAuthor.value = item.author || '';
-    jFormatText.textContent = typeLabels[item.type] || 'Outro';
     jGenre.value = item.genre || '';
     jPages.value = item.pages || '';
     jEpisodes.value = item.episodes || '';
     jDuration.value = item.duration || '';
-    jStart.value = item.startDate || '';
-    jFinish.value = item.finishDate || '';
+    jStart.value = item.start || '';
+    jFinish.value = item.finish || '';
     jSynopsis.value = item.synopsis || '';
     jThoughts.value = item.thoughts || '';
     jQuotes.value = item.quotes || '';
 
     tempJournalRating = item.rating || 0;
-    updateStars(journalStarsContainer, tempJournalRating);
+    updateStarRatingUI(journalStarsContainer, tempJournalRating);
 
-    journalSparkleBadge.classList.toggle('hidden', !item.sparkle);
+    if (item.sparkle) {
+      journalSparkleBadge.classList.remove('hidden');
+    } else {
+      journalSparkleBadge.classList.add('hidden');
+    }
 
-    if (rowPages) rowPages.style.display = item.type === 'book' ? 'flex' : 'none';
-    if (rowEpisodes) rowEpisodes.style.display = (item.type === 'show' || item.type === 'mc-show') ? 'flex' : 'none';
-    if (rowDuration) rowDuration.style.display = (item.type === 'movie' || item.type === 'mc-movie') ? 'flex' : 'none';
+    // Controle de campos por tipo
+    rowPages.classList.add('hidden');
+    rowEpisodes.classList.add('hidden');
+    rowDuration.classList.add('hidden');
 
-    if (item.coverUrl) {
-      journalCoverImg.src = item.coverUrl;
+    if (item.type === 'book') {
+      rowPages.classList.remove('hidden');
+    } else if (item.type === 'show' || item.type === 'mc-show') {
+      rowEpisodes.classList.remove('hidden');
+    } else if (item.type === 'movie' || item.type === 'mc-movie') {
+      rowDuration.classList.remove('hidden');
+    }
+
+    // Capa
+    if (item.cover) {
+      journalCoverImg.src = item.cover;
       journalCoverImg.classList.remove('hidden');
       coverPlaceholder.classList.add('hidden');
     } else {
+      journalCoverImg.src = '';
       journalCoverImg.classList.add('hidden');
       coverPlaceholder.classList.remove('hidden');
     }
 
-    calculateStats();
+    calculateStats(item);
     journalModal.classList.remove('hidden');
+  }
+
+  function calculateStats(item) {
+    if (!item.start || !item.finish) {
+      statsBanner.classList.add('hidden');
+      return;
+    }
+
+    const startDate = new Date(item.start);
+    const finishDate = new Date(item.finish);
+    const diffTime = finishDate - startDate;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    if (isNaN(diffDays) || diffDays < 1) {
+      statsBanner.classList.add('hidden');
+      return;
+    }
+
+    let msg = `Concluído em ${diffDays} ${diffDays === 1 ? 'dia' : 'dias'}! `;
+
+    if (item.type === 'book' && item.pages && diffDays > 0) {
+      const pPerDay = Math.round(item.pages / diffDays);
+      msg += `📖 Média de ~${pPerDay} páginas por dia.`;
+    } else if ((item.type === 'show' || item.type === 'mc-show') && item.episodes && diffDays > 0) {
+      const epPerDay = (item.episodes / diffDays).toFixed(1);
+      msg += `📺 Média de ~${epPerDay} episódios por dia.`;
+    }
+
+    statsText.textContent = msg;
+    statsBanner.classList.remove('hidden');
   }
 
   if (journalStarsContainer) {
     journalStarsContainer.querySelectorAll('span').forEach(star => {
       star.addEventListener('click', () => {
-        tempJournalRating = parseInt(star.getAttribute('data-value'), 10);
-        updateStars(journalStarsContainer, tempJournalRating);
+        tempJournalRating = parseInt(star.getAttribute('data-value'));
+        updateStarRatingUI(journalStarsContainer, tempJournalRating);
       });
     });
   }
 
-  // Upload Capa
+  // Upload de Imagem de Capa
   if (coverFrame && coverFileInput) {
     coverFrame.addEventListener('click', () => coverFileInput.click());
 
@@ -499,43 +521,30 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = e.target.files[0];
       if (file) {
         const reader = new FileReader();
-        reader.onload = function (evt) {
-          const coverUrl = evt.target.result;
-          journalCoverImg.src = coverUrl;
+        reader.onload = function(evt) {
+          const base64Img = evt.target.result;
+          journalCoverImg.src = base64Img;
           journalCoverImg.classList.remove('hidden');
           coverPlaceholder.classList.add('hidden');
 
           const item = items.find(i => i.id === currentItemId);
-          if (item) item.coverUrl = coverUrl;
+          if (item) {
+            item.cover = base64Img;
+          }
         };
         reader.readAsDataURL(file);
       }
     });
   }
 
-  // Estatísticas
-  function calculateStats() {
-    if (jStart.value && jFinish.value) {
-      const start = new Date(jStart.value);
-      const finish = new Date(jFinish.value);
-      const diffDays = Math.ceil((finish - start) / (1000 * 60 * 60 * 24));
-
-      if (diffDays >= 0) {
-        statsBanner.classList.remove('hidden');
-        statsText.textContent = `📊 Concluído em ${diffDays === 0 ? '1 dia (no mesmo dia!)' : diffDays + ' dias'}! 🎉`;
-      } else {
-        statsBanner.classList.add('hidden');
-      }
-    } else {
-      statsBanner.classList.add('hidden');
-    }
-  }
-
-  [jStart, jFinish].forEach(input => {
-    if (input) input.addEventListener('change', calculateStats);
+  // Lançar confetes nos cliques de brilho
+  document.querySelectorAll('.clickable-sparkle').forEach(sparkle => {
+    sparkle.addEventListener('click', () => {
+      const item = items.find(i => i.id === currentItemId);
+      triggerCelebration(item ? item.type : 'movie');
+    });
   });
 
-  // Salvar Journal
   if (btnSaveJournal) {
     btnSaveJournal.addEventListener('click', () => {
       const item = items.find(i => i.id === currentItemId);
@@ -545,41 +554,72 @@ document.addEventListener('DOMContentLoaded', () => {
         item.pages = jPages.value;
         item.episodes = jEpisodes.value;
         item.duration = jDuration.value;
-        item.startDate = jStart.value;
-        item.finishDate = jFinish.value;
+        item.start = jStart.value;
+        item.finish = jFinish.value;
         item.synopsis = jSynopsis.value;
         item.thoughts = jThoughts.value;
         item.quotes = jQuotes.value;
         item.rating = tempJournalRating;
 
         saveItems();
-        triggerCelebration(item.type);
       }
       journalModal.classList.add('hidden');
     });
   }
 
   if (btnCloseJournal) {
-    btnCloseJournal.addEventListener('click', () => journalModal.classList.add('hidden'));
+    btnCloseJournal.addEventListener('click', () => {
+      journalModal.classList.add('hidden');
+    });
   }
 
-  document.querySelectorAll('.clickable-sparkle').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      triggerCelebration('mc-movie');
-    });
-  });
-
-  // Fechar modais clicando no fundo
-  [ratingModal, journalModal, duplicateModal].forEach(modal => {
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.classList.add('hidden');
+  // Recalcular stats quando as datas mudarem no Journal
+  [jStart, jFinish, jPages, jEpisodes].forEach(input => {
+    if (input) {
+      input.addEventListener('change', () => {
+        const item = items.find(i => i.id === currentItemId);
+        if (item) {
+          const tempItem = {
+            ...item,
+            start: jStart.value,
+            finish: jFinish.value,
+            pages: jPages.value,
+            episodes: jEpisodes.value
+          };
+          calculateStats(tempItem);
         }
       });
     }
   });
 
+  // 10. ABA E FILTROS DE NAVEGAÇÃO
+  if (tabAll) {
+    tabAll.addEventListener('click', () => {
+      activeTab = 'pending';
+      tabAll.classList.add('active');
+      tabCompleted.classList.remove('active');
+      if (listTitle) listTitle.textContent = 'Para Assistir / Ler';
+      renderMediaList();
+    });
+  }
+
+  if (tabCompleted) {
+    tabCompleted.addEventListener('click', () => {
+      activeTab = 'completed';
+      tabCompleted.classList.add('active');
+      tabAll.classList.remove('active');
+      if (listTitle) listTitle.textContent = 'Assistidos / Lidos';
+      renderMediaList();
+    });
+  }
+  
+  if (filterSelect) {
+    filterSelect.addEventListener('change', (e) => {
+      activeFilter = e.target.value;
+      renderMediaList();
+    });
+  }
+
+  // Renderização inicial
   renderMediaList();
 });
