@@ -1,5 +1,5 @@
 /* ==========================================================================
-   PLOTVERSO - SCRIPT COMPLETO
+   PLOTVERSO - SCRIPT COMPLETO COM SISTEMA DE AUTENTICAÇÃO
    ========================================================================== */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -9,7 +9,106 @@ document.addEventListener('DOMContentLoaded', () => {
     '#FF3197', '#FF99DF', '#FFAC8F', '#FEFDB2', '#6CEBEF', '#9BB7E8'
   ];
 
-  // 2. CELEBRAÇÃO / CONFETES
+  // 2. SISTEMA DE AUTENTICAÇÃO (LOGIN / CADASTRO)
+  const authContainer = document.getElementById('auth-container');
+  const appContent = document.getElementById('app-content');
+  const authForm = document.getElementById('auth-form');
+  const authTitle = document.getElementById('auth-title');
+  const authSubtitle = document.getElementById('auth-subtitle');
+  const authUsernameInput = document.getElementById('auth-username');
+  const authPasswordInput = document.getElementById('auth-password');
+  const authError = document.getElementById('auth-error');
+  const btnAuthSubmit = document.getElementById('btn-auth-submit');
+  const btnToggleAuth = document.getElementById('btn-toggle-auth');
+  const authToggleMsg = document.getElementById('auth-toggle-msg');
+  const userGreeting = document.getElementById('user-greeting');
+  const btnLogout = document.getElementById('btn-logout');
+
+  let isRegisterMode = false;
+
+  function getUsers() {
+    return JSON.parse(localStorage.getItem('plotverso_users')) || {};
+  }
+
+  function getLoggedInUser() {
+    return localStorage.getItem('plotverso_logged_user');
+  }
+
+  function checkAuth() {
+    const activeUser = getLoggedInUser();
+    if (activeUser) {
+      if (authContainer) authContainer.classList.add('hidden');
+      if (appContent) appContent.classList.remove('hidden');
+      if (userGreeting) userGreeting.textContent = `Olá, ${activeUser}! ✨`;
+      loadUserItems(activeUser);
+    } else {
+      if (authContainer) authContainer.classList.remove('hidden');
+      if (appContent) appContent.classList.add('hidden');
+    }
+  }
+
+  if (btnToggleAuth) {
+    btnToggleAuth.addEventListener('click', () => {
+      isRegisterMode = !isRegisterMode;
+      authError.style.display = 'none';
+      authForm.reset();
+
+      if (isRegisterMode) {
+        authTitle.textContent = '⊹ ࣪ ˖ Criar Conta 𓏲ּ𝄢';
+        authSubtitle.textContent = 'Escolha um usuário e senha para salvar suas mídias! ✨';
+        btnAuthSubmit.textContent = 'Cadastrar ✨';
+        authToggleMsg.textContent = 'Já tem uma conta?';
+        btnToggleAuth.textContent = 'Fazer Login';
+      } else {
+        authTitle.textContent = '⊹ ࣪ ˖ Entrar no PlotVerso 𓏲ּ𝄢';
+        authSubtitle.textContent = 'Digite seu usuário e senha para continuar ✨';
+        btnAuthSubmit.textContent = 'Entrar ✨';
+        authToggleMsg.textContent = 'Ainda não tem uma conta?';
+        btnToggleAuth.textContent = 'Criar conta';
+      }
+    });
+  }
+
+  if (authForm) {
+    authForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const username = authUsernameInput.value.trim().toLowerCase();
+      const password = authPasswordInput.value.trim();
+
+      if (!username || !password) return;
+
+      const users = getUsers();
+
+      if (isRegisterMode) {
+        if (users[username]) {
+          authError.textContent = 'Este usuário já existe! Escolha outro.';
+          authError.style.display = 'block';
+          return;
+        }
+        users[username] = { password: password };
+        localStorage.setItem('plotverso_users', JSON.stringify(users));
+        localStorage.setItem('plotverso_logged_user', username);
+        checkAuth();
+      } else {
+        if (!users[username] || users[username].password !== password) {
+          authError.textContent = 'Usuário ou senha incorretos!';
+          authError.style.display = 'block';
+          return;
+        }
+        localStorage.setItem('plotverso_logged_user', username);
+        checkAuth();
+      }
+    });
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      localStorage.removeItem('plotverso_logged_user');
+      checkAuth();
+    });
+  }
+
+  // 3. CELEBRAÇÃO / CONFETES
   function triggerCelebration(type) {
     if (typeof confetti !== 'undefined') {
       confetti({
@@ -52,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }[tag] || tag));
   }
 
-  // 3. DETECÇÃO INTELIGENTE DE DUPLICADOS
+  // 4. DETECÇÃO INTELIGENTE DE DUPLICADOS
   function normalizeText(text) {
     return text
       .toLowerCase()
@@ -102,13 +201,28 @@ document.addEventListener('DOMContentLoaded', () => {
     return null;
   }
 
-  // 4. ESTADO DA APLICAÇÃO
+  // 5. ESTADO DA APLICAÇÃO
   let items = [];
-  try {
-    items = JSON.parse(localStorage.getItem('plotverso_items')) || [];
-  } catch (e) {
-    console.error('Erro ao carregar do localStorage:', e);
-    items = [];
+
+  function loadUserItems(user) {
+    try {
+      items = JSON.parse(localStorage.getItem(`plotverso_items_${user}`)) || [];
+    } catch (e) {
+      console.error('Erro ao carregar do localStorage:', e);
+      items = [];
+    }
+    renderMediaList();
+  }
+
+  function saveItems() {
+    const activeUser = getLoggedInUser();
+    if (!activeUser) return;
+    try {
+      localStorage.setItem(`plotverso_items_${activeUser}`, JSON.stringify(items));
+    } catch (e) {
+      alert('Aviso: Não foi possível salvar no navegador.');
+    }
+    renderMediaList();
   }
 
   let currentItemId = null;
@@ -117,21 +231,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let pendingTitleToAdd = null;
   let pendingTypeToAdd = null;
 
-  // 'pending' = Para Assistir / Ler (Padrão)
-  // 'completed' = Concluídos / Assistidos
   let activeTab = 'pending'; 
   let activeFilter = 'all';
 
-  function saveItems() {
-    try {
-      localStorage.setItem('plotverso_items', JSON.stringify(items));
-    } catch (e) {
-      alert('Aviso: Não foi possível salvar no navegador.');
-    }
-    renderMediaList();
-  }
-
-  // 5. ELEMENTOS DO DOM
+  // 6. ELEMENTOS DO DOM
   const mediaForm = document.getElementById('media-form');
   const titleInput = document.getElementById('title-input');
   const typeSelect = document.getElementById('type-select');
@@ -205,21 +308,17 @@ document.addEventListener('DOMContentLoaded', () => {
     'mc-movie': 'Minecraft Filme'
   };
 
-  // 6. RENDERIZAÇÃO DA LISTA COM SEPARAÇÃO DE ABAS
+  // 7. RENDERIZAÇÃO DA LISTA COM SEPARAÇÃO DE ABAS
   function renderMediaList() {
     if (!mediaList) return;
     mediaList.innerHTML = '';
 
-    // SEPARAÇÃO DA LISTA:
-    // Se estiver na aba 'pending', exibe apenas não-concluídos (!item.completed)
-    // Se estiver na aba 'completed', exibe apenas concluídos (item.completed)
     let filtered = items.filter(item => {
       if (activeTab === 'pending') return !item.completed;
       if (activeTab === 'completed') return item.completed;
       return true;
     });
 
-    // Aplica o filtro de tipo (Filme, Série, Livro, etc.)
     filtered = filtered.filter(item => {
       if (activeFilter === 'all') return true;
       return item.type === activeFilter;
@@ -260,7 +359,6 @@ document.addEventListener('DOMContentLoaded', () => {
       mediaList.appendChild(li);
     });
 
-    // Eventos da Lista
     mediaList.querySelectorAll('.custom-check').forEach(chk => {
       chk.addEventListener('change', (e) => {
         const id = e.target.getAttribute('data-id');
@@ -271,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
             triggerCelebration(item.type);
             openRatingModal(item.id);
           }
-          saveItems(); // Ao salvar, ele re-renderiza a lista e remove o item marcado da tela!
+          saveItems();
         }
       });
     });
@@ -292,7 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 7. GERENCIAMENTO DE ITENS
+  // 8. GERENCIAMENTO DE ITENS
   function createNewItem(title, type) {
     const newItem = {
       id: Date.now().toString(),
@@ -360,7 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 8. MODAL DE AVALIAÇÃO RÁPIDA
+  // 9. MODAL DE AVALIAÇÃO RÁPIDA
   function openRatingModal(id) {
     currentItemId = id;
     const item = items.find(i => i.id === id);
@@ -416,7 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 9. MODAL JOURNAL (REVIEW PAGE)
+  // 10. MODAL JOURNAL (REVIEW PAGE)
   function openJournalModal(id) {
     currentItemId = id;
     const item = items.find(i => i.id === id);
@@ -446,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
       journalSparkleBadge.classList.add('hidden');
     }
 
-    // Controle de campos por tipo
     rowPages.classList.add('hidden');
     rowEpisodes.classList.add('hidden');
     rowDuration.classList.add('hidden');
@@ -459,7 +556,6 @@ document.addEventListener('DOMContentLoaded', () => {
       rowDuration.classList.remove('hidden');
     }
 
-    // Capa
     if (item.cover) {
       journalCoverImg.src = item.cover;
       journalCoverImg.classList.remove('hidden');
@@ -513,7 +609,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Upload de Imagem de Capa
   if (coverFrame && coverFileInput) {
     coverFrame.addEventListener('click', () => coverFileInput.click());
 
@@ -537,7 +632,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Lançar confetes nos cliques de brilho
   document.querySelectorAll('.clickable-sparkle').forEach(sparkle => {
     sparkle.addEventListener('click', () => {
       const item = items.find(i => i.id === currentItemId);
@@ -573,7 +667,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Recalcular stats quando as datas mudarem no Journal
   [jStart, jFinish, jPages, jEpisodes].forEach(input => {
     if (input) {
       input.addEventListener('change', () => {
@@ -592,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 10. ABA E FILTROS DE NAVEGAÇÃO
+  // 11. ABA E FILTROS DE NAVEGAÇÃO
   if (tabAll) {
     tabAll.addEventListener('click', () => {
       activeTab = 'pending';
@@ -620,6 +713,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Renderização inicial
-  renderMediaList();
+  // Checagem inicial de login para carregar a aplicação
+  checkAuth();
 });

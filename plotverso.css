@@ -686,37 +686,36 @@ body {
   .journal-grid { grid-template-columns: 1fr; }
   .journal-header { flex-direction: column; align-items: center; text-align: center; }
 }
+
 /* ==========================================================================
    ESTILO POST-IT POP-UP (CENTRALIZADO NO MEIO DA TELA)
    ========================================================================== */
 
-/* Camada escura que cobre a tela inteira */
 #duplicate-modal {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(0, 0, 0, 0.4); /* Fundo escuro semitransparente */
-  backdrop-filter: blur(3px); /* Leve desfoque no fundo */
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(3px);
   display: flex;
-  align-items: center;     /* Centraliza verticalmente (no meio) */
-  justify-content: center; /* Centraliza horizontalmente */
-  z-index: 99999;          /* Fica por cima de absolutamente tudo */
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
 }
 
-/* O Post-it em si */
 .postit-card {
-  background: #FFF9A6; /* Amarelo Post-it fofo */
+  background: #FFF9A6;
   border-radius: 4px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), 0 3px 10px rgba(0, 0, 0, 0.15);
   padding: 28px 22px 20px 22px;
   width: 85%;
   max-width: 330px;
   position: relative;
-  transform: rotate(-2deg); /* Ligeira inclinação estilo post-it */
+  transform: rotate(-2deg);
   transition: transform 0.2s ease;
-  border-bottom-right-radius: 18px 4px; /* Efeito de ponta dobrada */
+  border-bottom-right-radius: 18px 4px;
   margin: 0 auto;
 }
 

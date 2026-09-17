@@ -7,11 +7,12 @@
   <link rel="stylesheet" href="plotverso.css">
   <!-- Canvas Confetti -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-<!-- Seu ícone da aba -->
+  <!-- Seu ícone da aba -->
   <link rel="icon" type="image/png" href="icone.png">
 </head>
+<body>
 
-<!-- POP-UP POST-IT DE ITEM DUPLICADO -->
+  <!-- POP-UP POST-IT DE ITEM DUPLICADO -->
   <div id="duplicate-modal" class="modal hidden">
     <div class="postit-card">
       <div class="postit-pin">📌</div>
@@ -26,74 +27,116 @@
     </div>
   </div>
 
-</body>
   <!-- Topo Navegador -->
   <header class="top-banner">
     <div class="banner-title">𓏲ּ𝄢 welcome to PlotVerso .ᐟ</div>
     <div class="banner-decor">🎬📖✨</div>
   </header>
 
-  <main class="scrapbook-container">
-
-    <!-- Header Card Principal -->
+  <!-- TELA DE LOGIN / CADASTRO -->
+  <div id="auth-container" class="scrapbook-container">
     <section class="box header-card">
       <div class="header-details">
-        <h1>⊹ ࣪ ˖PlotVerso𓏲ּ𝄢</h1>
-        <p class="subtitle">Seu diário interativo de filmes, livros e séries! ✨</p>
+        <h1 id="auth-title">⊹ ࣪ ˖ Entrar no PlotVerso 𓏲ּ𝄢</h1>
+        <p class="subtitle" id="auth-subtitle">Digite seu usuário e senha para continuar ✨</p>
       </div>
     </section>
 
-    <!-- Formulário para Adicionar Item -->
-    <section class="box add-card">
-      <h2>✦ Adicionar Novo Título</h2>
-      <form id="media-form">
-        <div class="input-group">
-          <input type="text" id="title-input" placeholder="Ex: Coraline, Harry Potter, Utopia..." required>
-          <select id="type-select">
-            <option value="movie">🎬 Filme</option>
-            <option value="book">📚 Livro</option>
-            <option value="show">📺 Série</option>
-            <option value="mc-show">⛏📺 Minecraft Série</option>
-            <option value="mc-movie">⛏🎬 Minecraft Filme</option>
-          </select>
-          <button type="submit" class="btn-add">+ Adicionar</button>
+    <section class="box add-card" style="max-width: 420px; margin: 0 auto; width: 100%;">
+      <form id="auth-form" style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
+          <label for="auth-username" style="font-weight: bold; font-size: 0.9rem; color: #FECE79;">Usuário:</label>
+          <input type="text" id="auth-username" placeholder="Digite seu usuário..." required style="padding: 10px; border: 2px solid #210100; border-radius: 4px; background: #FECE79; color: #210100; font-weight: bold; font-family: 'Quicksand', sans-serif;">
         </div>
+
+        <div style="display: flex; flex-direction: column; gap: 4px; text-align: left;">
+          <label for="auth-password" style="font-weight: bold; font-size: 0.9rem; color: #FECE79;">Senha:</label>
+          <input type="password" id="auth-password" placeholder="Digite sua senha..." required style="padding: 10px; border: 2px solid #210100; border-radius: 4px; background: #FECE79; color: #210100; font-weight: bold; font-family: 'Quicksand', sans-serif;">
+        </div>
+
+        <p id="auth-error" style="color: #FECE79; font-size: 0.85rem; margin: 0; display: none; font-weight: bold; background: rgba(0,0,0,0.2); padding: 6px; border-radius: 4px; text-align: center;"></p>
+
+        <button type="submit" id="btn-auth-submit" class="btn-add" style="margin-top: 8px; width: 100%;">Entrar ✨</button>
       </form>
+
+      <div style="margin-top: 15px; text-align: center; font-size: 0.85rem;">
+        <span id="auth-toggle-msg">Ainda não tem uma conta?</span>
+        <button id="btn-toggle-auth" style="background: none; border: none; color: #FECE79; text-decoration: underline; font-weight: bold; cursor: pointer; font-size: 0.85rem;">Criar conta</button>
+      </div>
     </section>
+  </div>
 
-    <!-- Navegação por Abas -->
-    <nav class="tabs-nav">
-      <button id="tab-all" class="tab-btn active">📁 Todos os Itens</button>
-      <button id="tab-completed" class="tab-btn">✅ Concluídos</button>
-    </nav>
+  <!-- CONTEÚDO PRINCIPAL (Exibido após Login) -->
+  <div id="app-content" class="hidden" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
+    
+    <!-- Barra Superior de Saudação / Logout -->
+    <div style="width: 100%; max-width: 880px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+      <span id="user-greeting" style="color: #FECE79; font-weight: bold; font-size: 0.95rem;"></span>
+      <button id="btn-logout" class="btn-back" style="cursor: pointer;">🚪 Sair</button>
+    </div>
 
-    <!-- Lista de Mídias (Papel Pautado) -->
-    <section class="box lined-paper">
-      <div class="list-header">
-        <h2 id="list-title">Minha Coleção</h2>
-        
-        <!-- Filtro por Categoria -->
-        <div class="filter-wrapper">
-          <label for="filter-select">Filtrar por:</label>
-          <select id="filter-select">
-            <option value="all">✨ Todos</option>
-            <option value="movie">🎬 Filmes</option>
-            <option value="show">📺 Séries</option>
-            <option value="book">📚 Livros</option>
-            <option value="mc-show">⛏📺 Minecraft Séries</option>
-            <option value="mc-movie">⛏🎬 Minecraft Filmes</option>
-          </select>
+    <main class="scrapbook-container">
+
+      <!-- Header Card Principal -->
+      <section class="box header-card">
+        <div class="header-details">
+          <h1>⊹ ࣪ ˖PlotVerso𓏲ּ𝄢</h1>
+          <p class="subtitle">Seu diário interativo de filmes, livros e séries! ✨</p>
+        </div>
+      </section>
+
+      <!-- Formulário para Adicionar Item -->
+      <section class="box add-card">
+        <h2>✦ Adicionar Novo Título</h2>
+        <form id="media-form">
+          <div class="input-group">
+            <input type="text" id="title-input" placeholder="Ex: Coraline, Harry Potter, Utopia..." required>
+            <select id="type-select">
+              <option value="movie">🎬 Filme</option>
+              <option value="book">📚 Livro</option>
+              <option value="show">📺 Série</option>
+              <option value="mc-show">⛏📺 Minecraft Série</option>
+              <option value="mc-movie">⛏🎬 Minecraft Filme</option>
+            </select>
+            <button type="submit" class="btn-add">+ Adicionar</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Navegação por Abas -->
+      <nav class="tabs-nav">
+        <button id="tab-all" class="tab-btn active">📁 Todos os Itens</button>
+        <button id="tab-completed" class="tab-btn">✅ Concluídos</button>
+      </nav>
+
+      <!-- Lista de Mídias (Papel Pautado) -->
+      <section class="box lined-paper">
+        <div class="list-header">
+          <h2 id="list-title">Minha Coleção</h2>
+          
+          <!-- Filtro por Categoria -->
+          <div class="filter-wrapper">
+            <label for="filter-select">Filtrar por:</label>
+            <select id="filter-select">
+              <option value="all">✨ Todos</option>
+              <option value="movie">🎬 Filmes</option>
+              <option value="show">📺 Séries</option>
+              <option value="book">📚 Livros</option>
+              <option value="mc-show">⛏📺 Minecraft Séries</option>
+              <option value="mc-movie">⛏🎬 Minecraft Filmes</option>
+            </select>
+          </div>
+
+          <span id="counter" class="counter-badge">0 itens</span>
         </div>
 
-        <span id="counter" class="counter-badge">0 itens</span>
-      </div>
+        <ul id="media-list" class="media-list">
+          <!-- Itens inseridos via JS -->
+        </ul>
+      </section>
 
-      <ul id="media-list" class="media-list">
-        <!-- Itens inseridos via JS -->
-      </ul>
-    </section>
-
-  </main>
+    </main>
+  </div>
 
   <!-- Modal / Avaliação Rápida -->
   <div id="rating-modal" class="modal-overlay hidden">
